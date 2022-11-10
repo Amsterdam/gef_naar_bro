@@ -9,21 +9,30 @@
 # hierin staan wachtwoorden en kvk-nummer van de organisatie
 # ook een link naar de bestandslocatie van de geopkg met sondeerlocaties die al aanwezig zijn in de bro
 # alles op te geven als string, met de onderstaande namen
-#validatieUsername = ''
-#validatiePassword = ''
+#username = ''
+#password = ''
 #kvk = ''
 #broGpkg = ''
 
 import tkinter as tk
 from tkinter import filedialog
 import os
-from gefxml_reader import Cpt
+import sys
 import math
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
 
+import requests
+from requests.structures import CaseInsensitiveDict
+from requests.auth import HTTPBasicAuth
+import json
+
+
 import organisatieSpecifiek
+
+sys.path.insert(0, '../gefxml_viewer')
+from gefxml_reader import Cpt
 
 main_win = tk.Tk()
 
@@ -43,7 +52,7 @@ tk.Label(main_win, text = 'Versie: ' + script_version, fg='grey', font='Courier 
 main_win.geometry("1200x300")
 main_win.sourceFolder = ''
 main_win.sourceFiles = []
-main_win.validateFiles = []
+main_win.validateFiles = ''
 
 def chooseDir():
     main_win.sourceFolder = filedialog.askdirectory(parent=main_win, title='Please select a directory')
@@ -62,7 +71,7 @@ b_chooseFiles.width = 100
 b_chooseFiles.config(font=('Courier 14'))
 
 def chooseValidate():
-    main_win.validateFiles = filedialog.askopenfilenames(parent=main_win, title='Please select validate')
+    main_win.validateFiles = filedialog.askdirectory(parent=main_win, title='Please select directory to validate')
 
 b_chooseValidate = tk.Button(main_win, text="Select Validate", width=20, height=3, command=chooseValidate)
 b_chooseValidate.place(x=935, y=95)
@@ -79,11 +88,10 @@ b_ContinueButton.config(font=('Courier 14 bold'))
 
 main_win.mainloop()
 
-def validate(files):
+def validate(folder):
+    print('validatie loopt')
+    files = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('xml')]
     # functie om te bepalen of een xml valide is via de API van BRO
-    import requests
-    from requests.structures import CaseInsensitiveDict
-    from requests.auth import HTTPBasicAuth
 
     url = "https://www.bronhouderportaal-bro.nl/api/validatie"
 
@@ -91,16 +99,72 @@ def validate(files):
     headers["Content-Type"] = "application/xml"
     headers["Authorization"] = "basic"
 
-    auth=HTTPBasicAuth(organisatieSpecifiek.validatieUsername, organisatieSpecifiek.validatiePassword)
+    auth=HTTPBasicAuth(organisatieSpecifiek.username, organisatieSpecifiek.password)
+
+    validateDict = {}
 
     for path in files:
-        print(path)
-        with open(path) as f:
-            data = f.read()
-        # doe de request
-        resp = requests.post(url, headers=headers, data=data, auth=auth)
-        broResp = resp.content.decode("utf-8")
-        print(path, broResp, '\n')
+
+        with open(path) as data:
+            # doe de request
+            resp = requests.post(url, headers=headers, data=data, auth=auth)
+            broResp = json.loads(resp.content.decode("utf-8"))
+            validateDict[path] = broResp
+    
+    validateDf = pd.DataFrame().from_dict(validateDict, orient='index')
+    validateDf.to_csv(f'{folder}/validate.csv', sep=';')
+    print(f'validatieresultaat weggeschreven in {folder}/validate.csv')
+
+
+def aanleveren(folder):
+    # functie om bestanden aan te leveren via de API van BRO
+    # volgens https://www.bronhouderportaal-bro.nl/doc/api.html
+    print('aanleveren loopt')
+    files = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('xml')]
+    
+    # geef het projectid op. Dit is het projectnummer dat je vindt onder Projectgegevens in het bronhouderportaal
+    projectId = organisatieSpecifiek.projectId
+    
+    urlAanmaken = f"https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/uploads"
+
+    headersAanmaken = CaseInsensitiveDict()
+    headersAanmaken["Content-Type"] = "application/xml"
+    headersAanmaken["Authorization"] = "basic"
+
+    auth=HTTPBasicAuth(organisatieSpecifiek.username, organisatieSpecifiek.password)
+
+    # post een request om een upload aan te maken.
+    resp = requests.post(urlAanmaken, headers=headersAanmaken, auth=auth)
+    # controleer of dat gelukt is
+    if resp.status_code == 201:
+        # er wordt een upload id aangemaakt die later weer nodig is
+        uploadId = resp.headers["Location"].split('/')[-1]
+        print('upload succesvol gemaakt')
+    else:
+        print(f'{resp.status_code}, er ging iets mis bij het aanmaken van het upload')
+
+
+    # voeg bestanden toe aan de upload
+    for path in files:
+        
+        filename = path.split('/')[-1]
+
+        urlUpload = f'https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/uploads/{uploadId}/brondocumenten?filename={filename}'
+
+        with open(path) as data:
+            # post een request om een bestand toe te voegen
+            resp = requests.post(urlUpload, headers=headersAanmaken, data=data, auth=auth)
+
+
+    # lever de upload
+    urlLeveren = f'https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/leveringen'
+
+    headersLeveren = CaseInsensitiveDict()
+    headersLeveren["Content-Type"] = "application/json"
+    headersLeveren["Authorization"] = "basic"
+
+    resp = requests.post(urlLeveren, headers=headersLeveren, data=json.dumps({"upload": int(uploadId)}), auth=auth)
+
 
 def to_gef113(cpt, filePath):
     # schrijf een bestand weg met daarin de ingelezen gegevens volgens de GEF standaard 113
@@ -127,75 +191,77 @@ def to_gef113(cpt, filePath):
 
     # ontbrekende data aanvullen
     if cpt.date is None:
-        date = '2017, , \n#COMMENT= datum informatie ontbreekt in oorspronkelijke bestand' # TODO: uitzoeken wat correcte 'informatie ontbreekt' tekst is
+        date = '-,-,-' # TODO: uitzoeken wat correcte 'informatie ontbreekt' tekst is
     if len(cpt.procedurecode.keys()) == 0:
         cpt.procedurecode = {"type": "GEF-CPT-Report", "major": 1, "minor": 1, "build": 0}
     if len(cpt.reportcode.keys()) == 0:
         cpt.reportcode = {"type": "GEF-CPT-Report", "major": 1, "minor": 1, "build": 0}
 
     # kvk-nummer aanvullen
-    if 'Multiconsult'.lower() in cpt.companyid.lower():
-        kvk = '09073590'
-    elif 'BAM Infraconsult BV'.lower() in cpt.companyid.lower():
-        kvk = '09073590'
-    elif 'Ruiter'.lower() in cpt.companyid.lower():
-        kvk = '09073590'
-    elif 'Lankelma Ingenieursbureau'.lower() in cpt.companyid.lower():
-        kvk = '71979972'
-    elif 'Lankelma'.lower() in cpt.companyid.lower():
-        kvk = '54521610'
-    elif 'Fugro'.lower() in cpt.companyid.lower():
-        kvk = '27114147'
-    elif 'Geonius'.lower() in cpt.companyid.lower():
-        kvk = '14048726'
-    elif 'Rotterdam'.lower() in cpt.companyid.lower():
-        kvk = '24483298'
-    elif 'Inpijn'.lower() in cpt.companyid.lower():
-        kvk = '17076128'
-    elif 'Dijk'.lower() in cpt.companyid.lower():
-        kvk = '30128364'
-    elif 'Mos'.lower() in cpt.companyid.lower():
-        kvk = '24257098'
-    elif 'Wiertsema'.lower() in cpt.companyid.lower():
-        kvk = '02095434'
-    elif 'Tjaden'.lower() in cpt.companyid.lower():
-        kvk = '54294959'
-    elif 'Geosonda'.lower() in cpt.companyid.lower():
-        kvk = '27184822'
-    elif 'Geo-Supporting'.lower() in cpt.companyid.lower():
-        kvk = '34252996'
-    elif 'Aelmans'.lower() in cpt.companyid.lower():
-        kvk = '14048216'
-    elif 'BoutenGeotron'.lower() in cpt.companyid.lower():
-        kvk = '10039086'
-    elif 'Hoogveld'.lower() in cpt.companyid.lower():
-        kvk = '08145500'
-    elif 'Hutton'.lower() in cpt.companyid.lower():
-        kvk = '82359598'
-    elif 'IJB'.lower() in cpt.companyid.lower():
-        kvk = '01059718'
-    elif 'Koops'.lower() in cpt.companyid.lower():
-        kvk = '61574031'
-    elif 'Ortageo'.lower() in cpt.companyid.lower():
-        kvk = '66382971'
-    elif 'Poelsema'.lower() in cpt.companyid.lower():
-        kvk = '05086972'
-    elif 'Sialtech'.lower() in cpt.companyid.lower():
-        kvk = '30114487'
-    elif 'Deltares'.lower() in cpt.companyid.lower():
-        kvk = '41146461'
-    elif 'Waternet'.lower() in cpt.companyid.lower():
-        kvk = '41216593'
-    elif 'Tjaden Adviesbureau'.lower() in cpt.companyid.lower():
-        kvk = '54294959'
-    elif 'Tjaden'.lower() in cpt.companyid.lower():
-        kvk = '34057287'
-    elif 'Straaten'.lower() in cpt.companyid.lower():
-        kvk = '20015504'
-    elif 'VWB'.lower() in cpt.companyid.lower():
-        kvk = '62092758'
-    else:
-        kvk = organisatieSpecifiek.kvk
+    checkKvk = False
+    if checkKvk:
+        if 'Multiconsult'.lower() in cpt.companyid.lower():
+            kvk = '09073590'
+        elif 'BAM Infraconsult BV'.lower() in cpt.companyid.lower():
+            kvk = '09073590'
+        elif 'Ruiter'.lower() in cpt.companyid.lower():
+            kvk = '09073590'
+        elif 'Lankelma Ingenieursbureau'.lower() in cpt.companyid.lower():
+            kvk = '71979972'
+        elif 'Lankelma'.lower() in cpt.companyid.lower():
+            kvk = '54521610'
+        elif 'Fugro'.lower() in cpt.companyid.lower():
+            kvk = '27114147'
+        elif 'Geonius'.lower() in cpt.companyid.lower():
+            kvk = '14048726'
+        elif 'Rotterdam'.lower() in cpt.companyid.lower():
+            kvk = '24483298'
+        elif 'Inpijn'.lower() in cpt.companyid.lower():
+            kvk = '17076128'
+        elif 'Dijk'.lower() in cpt.companyid.lower():
+            kvk = '30128364'
+        elif 'Mos'.lower() in cpt.companyid.lower():
+            kvk = '24257098'
+        elif 'Wiertsema'.lower() in cpt.companyid.lower():
+            kvk = '02095434'
+        elif 'Tjaden'.lower() in cpt.companyid.lower():
+            kvk = '54294959'
+        elif 'Geosonda'.lower() in cpt.companyid.lower():
+            kvk = '27184822'
+        elif 'Geo-Supporting'.lower() in cpt.companyid.lower():
+            kvk = '34252996'
+        elif 'Aelmans'.lower() in cpt.companyid.lower():
+            kvk = '14048216'
+        elif 'BoutenGeotron'.lower() in cpt.companyid.lower():
+            kvk = '10039086'
+        elif 'Hoogveld'.lower() in cpt.companyid.lower():
+            kvk = '08145500'
+        elif 'Hutton'.lower() in cpt.companyid.lower():
+            kvk = '82359598'
+        elif 'IJB'.lower() in cpt.companyid.lower():
+            kvk = '01059718'
+        elif 'Koops'.lower() in cpt.companyid.lower():
+            kvk = '61574031'
+        elif 'Ortageo'.lower() in cpt.companyid.lower():
+            kvk = '66382971'
+        elif 'Poelsema'.lower() in cpt.companyid.lower():
+            kvk = '05086972'
+        elif 'Sialtech'.lower() in cpt.companyid.lower():
+            kvk = '30114487'
+        elif 'Deltares'.lower() in cpt.companyid.lower():
+            kvk = '41146461'
+        elif 'Waternet'.lower() in cpt.companyid.lower():
+            kvk = '41216593'
+        elif 'Tjaden Adviesbureau'.lower() in cpt.companyid.lower():
+            kvk = '54294959'
+        elif 'Tjaden'.lower() in cpt.companyid.lower():
+            kvk = '34057287'
+        elif 'Straaten'.lower() in cpt.companyid.lower():
+            kvk = '20015504'
+        elif 'VWB'.lower() in cpt.companyid.lower():
+            kvk = '62092758'
+        else:
+            kvk = organisatieSpecifiek.kvk
 
 
     # maak de data absoluut, negatieve waarden zijn niet toegestaan
@@ -312,9 +378,9 @@ def to_gef113(cpt, filePath):
                 content
         )
 
-def check_al_in_BRO(easting, northing, broCptVolledigeSet):
+def check_al_in_BRO(easting, northing, buffer):
     # bepaal of op dit coördinaat al een sondering beschikbaar is
-    if Point(easting, northing) in broCptVolledigeSet.geometry:
+    if Point(easting, northing).within(buffer):
         return True
     else:
         return False
@@ -343,49 +409,52 @@ def convert_batch(files):
     i, j = 0, 0
 
     broCptVolledigeSet = gpd.read_file(organisatieSpecifiek.broGpkg)
+    broCptVolledigeSet = broCptVolledigeSet.to_crs('epsg:28992')
+    buffer = broCptVolledigeSet['geometry'].buffer(1).unary_union
 
+    # maak een bestand met errors
     with open('./output/errors.txt', 'w') as errors:
         for f in files:
             print(f)
-            # maak een bestand met errors
             if f.lower().endswith('gef'):
-                cpt = Cpt()
-                # laad de cpt in
-#                try: 
-                cpt.load_gef(f)
+                try:
+                    cpt = Cpt()
+                    # laad de cpt in
+    #                try: 
+                    cpt.load_gef(f)
 
-                # doe checks of xyz-coördinaten, testid en projectid aanwezig zijn en niet 0
-                checkContents = check_benodigdheden(cpt)
-                # check of het bestand een duplicaat is
+                    # doe checks of xyz-coördinaten, testid en projectid aanwezig zijn en niet 0
+                    checkContents = check_benodigdheden(cpt)
+                    # check of het bestand een duplicaat is
 
-# TODO: coördinaten inlezen uit GIS bestand als ze ontbreken
-# Dit kan niet voor alles. Kan ook nog later
-                # check of op deze locatie al een sondering in de BRO zit.
+                    # TODO: coördinaten inlezen uit GIS bestand als ze ontbreken
+                    # Dit kan niet voor alles. Kan ook nog later
+                    # check of op deze locatie al een sondering in de BRO zit.
 
-                if all(checkContents) and not (uniekCorrect == [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]).all(1).any():
-                    checkInBro = check_al_in_BRO(cpt.easting, cpt.northing, broCptVolledigeSet)
-                    if not checkInBro:
+                    if all(checkContents) and not (uniekCorrect == [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]).all(1).any():
+                        checkInBro = check_al_in_BRO(cpt.easting, cpt.northing, buffer)
+                        if not checkInBro:
 
-                        # bestandsnaam t.b.v. wegschrijven:
-                        fileName113 = f.split('/')[-1]
+                            # bestandsnaam t.b.v. wegschrijven:
+                            fileName113 = f.split('/')[-1]
 
-                        # voeg data over de sondering toe aan de tabel
-                        uniekCorrect.loc[i] = [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]
-                        
-                        # de omzetter naar xml kan maximaal 100 bestanden per keer aan
-                        # daarom per 100 bestanden een nieuwe map aanmaken
-                        if not os.path.isdir(f'./output/{math.floor(i/100)}'):
-                            os.mkdir(f'./output/{math.floor(i/100)}')
-                        # schrijf het bestand weg
-                        filePath = f'./output/{math.floor(i/100)}/{fileName113}'
+                            # voeg data over de sondering toe aan de tabel
+                            uniekCorrect.loc[i] = [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]
+                            
+                            # de omzetter naar xml kan maximaal 100 bestanden per keer aan
+                            # daarom per 100 bestanden een nieuwe map aanmaken
+                            if not os.path.isdir(f'./output/{math.floor(i/100)}'):
+                                os.mkdir(f'./output/{math.floor(i/100)}')
+                            # schrijf het bestand weg
+                            filePath = f'./output/{math.floor(i/100)}/{fileName113}'
 
-                        to_gef113(cpt, filePath)
-                        i += 1
-                else:
-                    nietUniekCorrect.loc[j] = [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]
-                    j += 1
-#                except Exception as e: 
-#                    errors.write(f'{f}, {e}\n') 
+                            to_gef113(cpt, filePath)
+                            i += 1
+                    else:
+                        nietUniekCorrect.loc[j] = [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]
+                        j += 1
+                except Exception as e:
+                    errors.write(f'{f}, {e}\n')
 
     uniekCorrect.to_csv('./output/uniekCorrect.csv', sep=';', decimal=',')
     nietUniekCorrect.to_csv('./output/nietUniekCorrect.csv', sep=';', decimal=',')
@@ -400,8 +469,7 @@ elif len(main_win.sourceFiles) > 0:
     convert_batch(files)
 
 
-elif len(main_win.validateFiles) > 0:
-    files = list(main_win.validateFiles)
-    validate(files)
+elif main_win.validateFiles != '':
+    validate(main_win.validateFiles)
 
 
