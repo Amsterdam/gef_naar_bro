@@ -14,11 +14,20 @@
 #kvk = ''
 #broGpkg = ''
 
+__author__ = "Thomas van der Linden"
+__credits__ = ""
+__license__ = "EUPL-1.2"
+__version__ = ""
+__maintainer__ = "Thomas van der Linden"
+__email__ = "t.van.der.linden@amsterdam.nl"
+__status__ = "Dev"
+
 import tkinter as tk
 from tkinter import filedialog
 import os
 import sys
 import math
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 from shapely.geometry import Point
@@ -29,7 +38,7 @@ from requests.auth import HTTPBasicAuth
 import json
 
 
-import organisatieSpecifiek
+import organisatieSpecifiek # TODO: from organisatieSpecifiek import ...
 
 sys.path.insert(0, '../gefxml_viewer')
 from gefxml_reader import Cpt
@@ -44,8 +53,9 @@ tk.Label(main_win, image=logo2).place(x=15, y=5)
 
 script_version = ''
 script_name = 'Thomas van der Linden'
-tk.Label(main_win, text='Zet oude GEF formaten om in nieuwe t.b.v. omzetten naar BRO XML ', fg='black', font='Courier 16 bold').pack()
+tk.Label(main_win, text='Zet oude GEF formaten om in gef1.1.3 t.b.v. omzetten naar BRO XML ', fg='black', font='Courier 16 bold').pack()
 tk.Label(main_win, text='Lees GEF bestanden in map met Python =) of kies één of meerdere GEF-file(s)', fg='black', font='Courier 12').pack()
+tk.Label(main_win, text='Kies een map om xml bestanden te valideren', fg='black', font='Courier 12').pack()
 tk.Label(main_win, text = 'Script: ' + script_name, fg='grey', font='Courier 10').place(x=800, y=280)
 tk.Label(main_win, text = 'Versie: ' + script_version, fg='grey', font='Courier 10').place(x=1095, y=280)
 
@@ -89,7 +99,8 @@ b_ContinueButton.config(font=('Courier 14 bold'))
 main_win.mainloop()
 
 def validate(folder):
-    print('validatie loopt')
+    # functie om bestanden te valideren via de API van BRO
+    # volgens https://www.bronhouderportaal-bro.nl/doc/api.html
     files = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('xml')]
     # functie om te bepalen of een xml valide is via de API van BRO
 
@@ -104,7 +115,7 @@ def validate(folder):
     validateDict = {}
 
     for path in files:
-
+        print(path)
         with open(path) as data:
             # doe de request
             resp = requests.post(url, headers=headers, data=data, auth=auth)
@@ -116,48 +127,55 @@ def validate(folder):
     print(f'validatieresultaat weggeschreven in {folder}/validate.csv')
 
 
-def aanleveren(folder):
+def aanleveren(folders):
     # functie om bestanden aan te leveren via de API van BRO
     # volgens https://www.bronhouderportaal-bro.nl/doc/api.html
     print('aanleveren loopt')
-    files = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('xml')]
     
     # geef het projectid op. Dit is het projectnummer dat je vindt onder Projectgegevens in het bronhouderportaal
     projectId = organisatieSpecifiek.projectId
     
-    urlAanmaken = f"https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/uploads"
-
     headersAanmaken = CaseInsensitiveDict()
     headersAanmaken["Content-Type"] = "application/xml"
     headersAanmaken["Authorization"] = "basic"
 
     auth=HTTPBasicAuth(organisatieSpecifiek.username, organisatieSpecifiek.password)
 
+    uploadId = upload_aanmaken(auth, headersAanmaken, projectId)
+
+    for folder in folders: # het zou netter zijn per folder, maar dan is de levering ook per folder en dat is minder goed
+        files = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('xml')]
+        for path in files:
+            bestanden_toevoegen_aan_upload(auth, headersAanmaken, path, projectId, uploadId)
+    lever_upload(auth, projectId, uploadId)
+
+def upload_aanmaken(auth, headers, projectId):
     # post een request om een upload aan te maken.
-    resp = requests.post(urlAanmaken, headers=headersAanmaken, auth=auth)
+    urlAanmaken = f"https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/uploads"
+
+    resp = requests.post(urlAanmaken, headers=headers, auth=auth)
     # controleer of dat gelukt is
     if resp.status_code == 201:
         # er wordt een upload id aangemaakt die later weer nodig is
-        uploadId = resp.headers["Location"].split('/')[-1]
         print('upload succesvol gemaakt')
+        return resp.headers["Location"].split('/')[-1]
     else:
         print(f'{resp.status_code}, er ging iets mis bij het aanmaken van het upload')
 
-
+def bestanden_toevoegen_aan_upload(auth, headers, path, projectId, uploadId):
     # voeg bestanden toe aan de upload
-    for path in files:
         
-        filename = path.split('/')[-1]
+    filename = path.split('/')[-1]
 
-        urlUpload = f'https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/uploads/{uploadId}/brondocumenten?filename={filename}'
+    urlUpload = f'https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/uploads/{uploadId}/brondocumenten?filename={filename}'
 
-        with open(path) as data:
-            # post een request om een bestand toe te voegen
-            resp = requests.post(urlUpload, headers=headersAanmaken, data=data, auth=auth)
+    with open(path) as data:
+        # post een request om een bestand toe te voegen
+        resp = requests.post(urlUpload, headers=headers, data=data, auth=auth)
 
-
+def lever_upload(auth, projectId, uploadId):
     # lever de upload
-    urlLeveren = f'https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/leveringen'
+    urlLeveren = f'https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/leveringen?labels=archief'
 
     headersLeveren = CaseInsensitiveDict()
     headersLeveren["Content-Type"] = "application/json"
@@ -270,13 +288,6 @@ def to_gef113(cpt, filePath):
             cpt.data[cpt.data[param] < 0][param] = 0
     cpt.data = cpt.data.abs()
     
-    # schrijf de data weg zonder header en index
-    # om later weer in te lezen als platte tekst
-    # direct omzetten met to_string kan een foutmelding geven bij omzetten naar XML vanwege initiële spatie
-    cpt.data.to_csv('./datatemp.txt', index=False, header=False, sep=' ', na_rep='-9999')
-    with open('./datatemp.txt', 'r') as f:
-        content = f.read()
-
     with open(filePath, 'w') as f:
         f.write(
             f'#GEFID= {cpt.gefid["major"]},{cpt.gefid["minor"]},{cpt.gefid["build"]}\n' +
@@ -342,10 +353,33 @@ def to_gef113(cpt, filePath):
             f.write("#MEASUREMENTTEXT= 24, cpt uit archief ingenieursbureau Amsterdam, -\n")
 
         # een te diepe start van de sondering zonder opgave van voorboring resulteert in een foutmelding
-        if cpt.data['penetrationLength'].min() != 0. and not '13' in cpt.measurementvars.keys():
-            # voeg voorboordiepte toe
-            f.write(f"#MEASUREMENTVAR= 13, {cpt.data['penetrationLength'].min()},m,-\n")
+        # er zijn twee opties:
+        # 1. measurement variable 13 - voorboring
+        # 2. opvullen vanaf sondeerlengte 0 met dummy waarden
+        voorboringMeasurmentVar13 = False
+        voorboringDummyVulling = True
+        # deze methode werkt voor 00 (2) en voor W106 (4)
+        if voorboringMeasurmentVar13:
+            # als er geen measurementvar 13 aanwezig is in het originele bestand
+            if cpt.data['penetrationLength'].min() != 0. and not '13' in cpt.measurementvars.keys():    
+                f.write(f"#MEASUREMENTVAR= 13, {cpt.data['penetrationLength'].min()}, m, -\n")
+            # als er wel measurementvar 13 aanwezig is in het originele bestand    
+            elif cpt.data['penetrationLength'].min() != 0. and '13' in cpt.measurementvars.keys():
+                f.write(f"#MEASUREMENTVAR= 13, {cpt.measurementvars['13']}\n") 
 
+        # deze methode werkt 1016-0174-009_DKM10
+        if voorboringDummyVulling:
+            if cpt.data['penetrationLength'].min() != 0.:
+                voorboring = pd.DataFrame(columns=cpt.data.columns)
+                if 'penetrationLength' in cpt.data.columns:
+                    voorboring['penetrationLength'] = np.arange(0, cpt.data['penetrationLength'].min(), 0.02)
+                    for column in cpt.data.columns:
+                        if column != 'penetrationLength':
+                            voorboring[column] = -9999
+                cpt.data = pd.concat([cpt.data, voorboring])
+                cpt.data.sort_values(by='penetrationLength', inplace=True)
+
+        # TODO: uitzoeken wat hiermee te doen in relatie tot bovenstaande omgang met voorboringen
         # soms is er voor een regel met dummy waarden toegevoegd, in dat geval
         if cpt.data[cpt.data['penetrationLength'] == 0.][cpt.data.columns[1:]].isnull().values.all():
             # het kan ook zijn dat de waarde 0 niet voorkomt, dan is de vorige True
@@ -368,8 +402,16 @@ def to_gef113(cpt, filePath):
             f.write(f"#COLUMNINFO= {number+1},{cpt.columninfoUnit[number]},{text},{cpt.columninfoQuantNr[number]}\n")
 
         # column void values zijn vervangen door -9999
-        for colnr, voidvalue in cpt.columnvoid_values.items():
-            f.write(f'#COLUMNVOID= {colnr+1}, -9999\n')
+        for colnr, voidvalue in enumerate(cpt.data.columns): #cpt.columnvoid_values.items():
+            f.write(f'#COLUMNVOID= {colnr+1}, -9999.0\n')
+
+        # schrijf de data weg zonder header en index
+        # om later weer in te lezen als platte tekst
+        # direct omzetten met to_string kan een foutmelding geven bij omzetten naar XML vanwege initiële spatie
+        cpt.data.to_csv('./datatemp.txt', index=False, header=False, sep=' ', na_rep='-9999.0')
+        with open('./datatemp.txt', 'r') as dataTemp:
+            content = dataTemp.read()
+
 
         f.write(
                 f'#COLUMN= {len(cpt.columninfo)}\n' +
@@ -473,3 +515,93 @@ elif main_win.validateFiles != '':
     validate(main_win.validateFiles)
 
 
+
+vanMap = 37
+totMap = 43
+
+doOpnieuw = False
+if doOpnieuw:
+    # onderstaande is om een correctie uit te kunnen voeren
+    # in veel bestanden ontbreekt een voorboordiepte vanwege een onhandige check
+    # die bestanden kunnen opnieuw omgezet worden in gef113
+    for i in range(vanMap, totMap+1):
+        validatieResult = pd.read_csv(f'C:/Users/linden082/Documents/{i}/xml/validate.csv', sep=';')
+        nietValide = validatieResult[validatieResult['status'] == 'NIET_VALIDE']
+        nietValide['filename'] = nietValide['Unnamed: 0'].str.split('/').str.get(-1)
+        for filename in nietValide['filename']:
+            cpt = Cpt()
+            try:
+                f = f"C:/Users/linden082/data\cpt/GEF/niet_omegam/{filename.replace('xml', 'gef')}"
+                cpt.load_gef(f)
+            except:
+                f = f"C:/Users/linden082/data\cpt/GEF/niet_omegam/{filename.replace('xml', 'GEF')}"
+                cpt.load_gef(f)
+
+            filePath = f"C:/Users/linden082/Documents/{i}/{filename.replace('xml', 'gef')}"
+            
+            to_gef113(cpt, filePath)
+
+doValidatie = False
+if doValidatie:
+    for i in range(vanMap, totMap+1):
+        folder = f'C:/Users/linden082/Documents/{i}/xml'
+        validate(folder)
+
+moveInvalidXML = False
+if moveInvalidXML:
+    for i in range(vanMap, totMap+1):
+        validatieResult = pd.read_csv(f'C:/Users/linden082/Documents/{i}/xml/validate.csv', sep=';')
+        nietValide = validatieResult[validatieResult['status'] == 'NIET_VALIDE']
+        nietValide['filename'] = nietValide['Unnamed: 0'].str.split('/').str.get(-1)
+
+        if not os.path.isdir(f'C:/Users/linden082/Documents/iets mis/{i}/'):
+            os.mkdir(f'C:/Users/linden082/Documents/iets mis/{i}/')
+
+        for filename in nietValide['filename']:
+            f = f'C:/Users/linden082/Documents/{i}/xml/{filename}'
+            dest = f'C:/Users/linden082/Documents/iets mis/{i}/{filename}'
+            os.rename(f, dest)
+
+
+filterAmsterdam = False
+if filterAmsterdam:
+    # doorloop de bestanden nog eens of ze in Amsterdam zijn, anders grote kans dat de locaties fout zijn
+    # TODO: moet ook in de batch verwerking
+    # TODO: let dan op,of je all of any gebruikt!
+    for i in range(vanMap, totMap+1):
+        if not os.path.isdir(f'C:/Users/linden082/Documents/iets mis/buitenAdam/{i}/'):
+            os.mkdir(f'C:/Users/linden082/Documents/iets mis/buitenAdam/{i}/')
+        folder = f'C:/Users/linden082/Documents/{i}/xml'
+        files = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('xml')]
+        for f in files:
+            cpt = Cpt()
+            cpt.load_xml(f)
+            westVanA = cpt.easting < organisatieSpecifiek.west
+            oostVanA = cpt.easting > organisatieSpecifiek.oost
+            noordVanA = cpt.northing > organisatieSpecifiek.noord
+            zuidVanA = cpt.northing < organisatieSpecifiek.zuid
+            # als een van deze True is dan moet het bestand verplaatst worden
+            if any([oostVanA, westVanA, noordVanA, zuidVanA]):
+                filename = f.split('/')[-1]
+
+                dest = f'C:/Users/linden082/Documents/iets mis/buitenAdam/{i}/{filename}'
+                os.rename(f, dest)
+
+
+doLeveren = True
+if doLeveren:
+    folders = [f'C:/Users/linden082/Documents/{i}/xml' for i in range(vanMap, totMap+1)]
+    aanleveren(folders)
+
+losGefOmzetten = False
+if losGefOmzetten:
+    gef = '1016-0174-009_DKM10' #'00 (2)' # W106 (4)
+    f = f'./gef113/in_test/{gef}.gef'
+    filePath = f'./gef113/out_test/{gef}.gef'
+    cpt = Cpt()
+    cpt.load_gef(f)
+    to_gef113(cpt, filePath)
+
+losXmlValideren = False
+if losXmlValideren:
+    validate('./gef113/out_test/xml')
