@@ -1,19 +1,24 @@
-# lengteprofiel
-Dit script zet oude gef formaten om in gef 1.1.3. Er wordt informatie waar nodig aangevuld of aangepast.
-Deze bestanden kunnen vervolgens met het programma GEF-CPT2BRO-XML (van Fugro en Wiertsema & Partners, verkrijgbaar bij BRO) omgezet worden in IMBRO/A.
-De xml kunnen worden geleverd aan de BRO.
-Ook is er een optie om XMl te valideren via de API van de BRO. Hiervoor zijn een inlognaam en wachtwoord benodigd.
+# gef naar gef 1.1.3 omzetter t.b.v. aanleveren als imbro/a
+Deze applicatie:
+* zet oude gef formaten om in gef 1.1.3. Er wordt informatie waar nodig aangevuld of aangepast. Deze bestanden kunnen vervolgens met het programma GEF-CPT2BRO-XML (van Fugro en Wiertsema & Partners, verkrijgbaar bij BRO) omgezet worden in IMBRO/A. De xml kunnen worden geleverd aan de BRO.
+* Ook is er een optie om XMl te valideren en te leveren via de API van de BRO. Hiervoor zijn een inlognaam en wachtwoord benodigd.
 Meer over de validatie op: [bro-website] https://basisregistratieondergrond.nl/inhoud-bro/aanleveren-gebruiken/tools-tips/validatieservice/
+Meer over de API op: [bro-api] https://www.bronhouderportaal-bro.nl/doc/api.html
 
-Er is een apart bestand met de naam organisatieSpecifiek.py nodig
-Hierin staan wachtwoorden en kvk-nummer van de organisatie
-en een link naar de bestandslocatie van de geopkg met sondeerlocaties die al aanwezig zijn in de BRO ?CHECK BIJ MARTIN WAAR JE DIE HAALT?
-Dit alles op te geven als string, met de onderstaande namen
-#validatieUsername = ''
-#validatiePassword = ''
-#kvk = ''
-#broGpkg = ''
-
+Voor gebruik van de API is een apart bestand met de naam organisatieSpecifiek.py nodig
+Hierin staan username en wachtwoord voor de API, kvk-nummer en naam van de organisatie en
+ook een link naar de bestandslocatie van de geopkg met sondeerlocaties die al aanwezig zijn in de BRO. Dit alles op te geven, met de onderstaande namen:
+* username = '' Code bestaande uit letters en cijfers, wordt gegenereerd in het Bronhouderportaal
+* password = '' Code bestaande uit letters en cijfers, wordt gegenereerd in het Bronhouderportaal
+* projectId = '1234' Type: string. Dit is het projectnummer dat je vindt onder Projectgegevens in het bronhouderportaal
+* kvk = '12345678' Type: string. Dit is het registratienummer van je organisatie bij de KvK
+* broGpkg = './path/to/brocptvolledigeset_11-07-2022_14-09_v0.03.gpkg' Locatie en naam van een geopackage met sonderingen om dubbele te voorkomen.
+* naam = 'Gemeente Amsterdam' Naam van je organisatie
+* oost = 135000 Maximale RD x-coördinaat van het gebied waaruit je wil aanleveren
+* west = 105000 Minimale RD x-coördinaat van het gebied waaruit je wil aanleveren
+* noord = 495000 Maximale RD y-coördinaat van het gebied waaruit je wil aanleveren
+* zuid = 476000 Minimale RD y-coördinaat van het gebied waaruit je wil aanleveren
+De BRO CPT geopackage is te downloaden op: [PDOK] https://service.pdok.nl/bzk/brocptvolledigeset/atom/v1_0/brocptvolledigeset.xml. Dit bestand bevat sonderingen in heel Nederland en kan vanwege de verwerkingssnelheid beter eerst gefilterd worden voor het gebied waar je werkt.
 
 ## Dependencies
 * Zie environment.yml
@@ -49,12 +54,14 @@ Dit alles op te geven als string, met de onderstaande namen
 1. Kopieer en plak in de prompt nog eens:
 * `python gui_2gef113.py`
 1. Klik _Select Validate_
-1. Selecteer de BRO-XML-bestanden die je wil valideren
+1. Selecteer een map met BRO-XML-bestanden die je wil valideren
 1. Klik _Continue_
-1. In de prompt verschijnt nu steeds de bestandsnaam en de reactie van de BRO
+1. Er wordt een bestand in deze map gemaakt met het resultaat (valide / niet valide en reden)
 
 ## Aanleveren aan de BRO
-1. Lever de bestanden op de gebruikelijke wijze aan bij de BRO. Tips hierbij:
+1. Lever de bestanden op de gebruikelijke wijze aan bij de BRO. 
+2. Of gebruik de functies die daarvoor beschikbaar zijn in functions.py
+Tips hierbij:
 * Doe het in kleine batches (maximaal 500 stuks per keer)
 
 ## Vragen of opmerkingen?

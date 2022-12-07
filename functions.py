@@ -104,6 +104,117 @@ def lever_upload(auth, projectId, uploadId):
 
     resp = requests.post(urlLeveren, headers=headersLeveren, data=json.dumps({"upload": int(uploadId)}), auth=auth)
 
+def check_datum(cpt):
+    from datetime import datetime
+    # er zijn bestanden met filedate voor startdate, dat is niet valide
+    # als dat zo is, dan worden de datums gelijk gesteld
+    if len(cpt.startdate.keys()) == 3 and len(cpt.filedate.keys()) == 3:
+        filedate = datetime(cpt.filedate["year"], cpt.filedate["month"], cpt.filedate["day"])
+        testdate = datetime(cpt.startdate["year"], cpt.startdate["month"], cpt.startdate["day"])
+        if filedate < testdate:
+            cpt.filedate["year"], cpt.filedate["month"], cpt.filedate["day"] = cpt.startdate["year"], cpt.startdate["month"], cpt.startdate["day"]
+
+    # filedate is verplicht
+    # als er geen filedate is, maar wel startdate is dat de tweede keus
+    if len(cpt.filedate.keys()) == 0 and len(cpt.startdate.keys()) > 0:
+        cpt.filedate["year"], cpt.filedate["month"], cpt.filedate["day"] = cpt.startdate["year"], cpt.startdate["month"], cpt.startdate["day"]
+    # zonder startdate is bestand niet valide
+    elif len(cpt.startdate.keys()) == 0 and len(cpt.filedate.keys()) > 0:
+    # als er wel een filedate is, maar geen startdate is dat de tweede keus
+        cpt.startdate["year"], cpt.startdate["month"], cpt.startdate["day"] = cpt.filedate["year"], cpt.filedate["month"], cpt.filedate["day"]
+    # anders stel beide in op dummy waarden
+    elif len(cpt.startdate.keys()) == 0 and len(cpt.filedate.keys()) == 0:
+        cpt.filedate["year"], cpt.filedate["month"], cpt.filedate["day"] = '-', '-', '-'
+        cpt.startdate["year"], cpt.startdate["month"], cpt.startdate["day"] = '-', '-', '-'
+
+    # TODO: -, -, - lijkt niet te werken voor FILEDATE of STARTDATE
+    # Check: https://github.com/BROprogramma/CPT_GEF_CONVERTER/blob/master/gef_impl/src/test/resources/test-artf52193cpt.gef hierin is STARTTIME met -, -, - gedaan
+    # ook in https://github.com/BROprogramma/CPT_GEF_CONVERTER/blob/master/gef_impl/src/test/resources/test-artf52193dis.gef
+    return cpt
+
+def check_voorboring_meas_var(cpt):
+    # als er geen measurementvar 13 aanwezig is in het originele bestand
+    # deze methode werkt voor 00 (2) en voor W106 (4)
+    if cpt.data['penetrationLength'].min() != 0. and not '13' in cpt.measurementvars.keys():    
+        cpt.voorboring = cpt.data['penetrationLength'].min()
+    # als er wel measurementvar 13 aanwezig is in het originele bestand    
+    elif cpt.data['penetrationLength'].min() != 0. and '13' in cpt.measurementvars.keys():
+        cpt.voorboring = cpt.measurementvars['13']
+    else:
+        cpt.voorboring = None
+
+def check_voorboring_dummy(cpt):
+    # deze methode werkt voor bijv 1016-0174-009_DKM10
+    if cpt.data['penetrationLength'].min() != 0.:
+        voorboring = pd.DataFrame(columns=cpt.data.columns)
+        if 'penetrationLength' in cpt.data.columns:
+            voorboring['penetrationLength'] = np.arange(0, cpt.data['penetrationLength'].min(), 0.02)
+            for column in cpt.data.columns:
+                if column != 'penetrationLength':
+                    voorboring[column] = -9999
+        cpt.data = pd.concat([cpt.data, voorboring])
+        cpt.data.sort_values(by='penetrationLength', inplace=True)
+
+def check_waterdiepte(cpt):
+    # soms is er één regel met dummy waarden toegevoegd om een waterspiegel op te geven, dat werkt niet correct
+    gebruikWaterdiepte = False
+    if cpt.data[cpt.data['penetrationLength'] == 0.][cpt.data.columns[1:]].isnull().values.all():
+        # het kan ook zijn dat de waarde 0 niet voorkomt, dan is de vorige True
+        # daarom check of die lengte voorkomt en of maaiveld / waterbodem is opgegeven
+        if len(cpt.data[cpt.data['penetrationLength'] == 0.] > 0) and '9' in cpt.measurementtexts.keys():
+            # als de referentie iets van water is
+            if 'w' in cpt.measurementtexts['9'].lower():
+                # verwijder de eerste regel
+                cpt.data.drop(labels=cpt.data[cpt.data['penetrationLength'] == 0.].index[0], axis='index')
+                # voeg waterdiepte toe
+                # TODO: zou eventueel ook via measurementvar 15 kunnen
+                cpt.waterdepth = cpt.data['penetrationLength'].min()
+                gebruikWaterdiepte = True
+                return gebruikWaterdiepte, cpt.waterdepth
+    return gebruikWaterdiepte, None
+
+def check_verticaal_referentie(cpt):
+    # lokaal verticaal referentiepunt is verplicht
+    # als het ontbreekt, aanvullen met standaard maaiveld
+    mt9Options = ['maaiveld', 'mv', 'ground level', 'groundlevel', 'waterbodem', 'wb', 'flow bed']
+    if '9' in cpt.measurementtexts.keys():
+        # er werden in de praktijk verschillende woorden gebruikt. Moet 'maaiveld' of 'waterbodem' zijn.
+        if cpt.measurementtexts['9'].lower() in mt9Options:
+            cpt.verticalReference = {cpt.measurementtexts['9']}
+        elif 'w' in cpt.measurementtexts['9'].lower():
+            cpt.verticalReference = 'waterbodem'
+        elif 'v' in cpt.measurementtexts['9'].lower() or 'g' in cpt.measurementtexts['9'].lower():
+            cpt.verticalReference = 'maaiveld'
+        # TODO: dit afmaken
+        # elif cpt.groundlevel >= 0: # TODO: variabele maken voor minimaal niveau maaiveld
+        #   cpt.verticalReference = 'maaiveld'
+        # elif cpt.groundlevel < 1: #  TODO: variabele maken voor maximaal niveau waterbodem, maar dan diepere polders?
+        #   cpt.verticalReference = 'waterbodem'
+        # else TODO: what else? check via open street map of dit coördinaat in het water is of zoiets?
+    else:
+        cpt.verticalReference = 'maaiveld'
+    return cpt
+
+def check_cpt_record_code(cpt):
+    if len(cpt.procedurecode.keys()) == 0:
+        cpt.procedurecode = {"type": "GEF-CPT-Report", "major": 1, "minor": 1, "build": 0}
+    if len(cpt.reportcode.keys()) == 0:
+        cpt.reportcode = {"type": "GEF-CPT-Report", "major": 1, "minor": 1, "build": 0}
+    return cpt
+
+def check_data_negative(cpt):
+    # wrijving mag niet negatief zijn, zet negatieve waarden op dummy
+    for param in ['frictionRatio', 'localFriction']:
+        if param in cpt.data.columns:
+            cpt.data[cpt.data[param] < 0][param] = np.nan
+            # wrijvingsgetal mag niet groter zijn dan 100.1, dan ook op dummy zetten
+            if param == 'frictionRatio':
+                cpt.data[cpt.data[param] > 100.1][param] = np.nan
+    # negatieve waarden zijn soms aanwezig, maar niet toegestaan
+    # maak de rest van de data absoluut
+    cpt.data = cpt.data.abs()
+    return cpt
+
 def kvk_aanvullen(cpt):
     # voor IMBRO is een kvk nummer nodig
     # deze functie kan op basis van een bedrijfsnaam een kvk nummer invullen
@@ -196,21 +307,33 @@ def to_gef113(cpt, filePath):
         os.mkdir(f'./output/')
 
     # ontbrekende data aanvullen
-    if cpt.date is None:
-        date = '-,-,-'
-    if len(cpt.procedurecode.keys()) == 0:
-        cpt.procedurecode = {"type": "GEF-CPT-Report", "major": 1, "minor": 1, "build": 0}
-    if len(cpt.reportcode.keys()) == 0:
-        cpt.reportcode = {"type": "GEF-CPT-Report", "major": 1, "minor": 1, "build": 0}
+    cpt = check_cpt_record_code(cpt)
+    cpt = check_data_negative(cpt)
+    cpt = check_datum(cpt)
+    cpt = check_verticaal_referentie(cpt)
 
-    # wrijving mag niet negatief zijn, zet negatieve waarden op 0
-    for param in ['frictionRatio', 'localFriction']:
-        if param in cpt.data.columns:
-            cpt.data[cpt.data[param] < 0][param] = 0
-    # negatieve waarden zijn soms aanwezig, maar niet toegestaan
-    # maak de rest van de data absoluut
-    cpt.data = cpt.data.abs()
-    
+    # een te diepe start van de sondering zonder opgave van voorboring resulteert in een foutmelding
+    # er zijn twee opties:
+    # 1. measurement variable 13 - voorboring
+    # 2. opvullen vanaf sondeerlengte 0 met dummy waarden
+    # voor sommige bestanden werkt alleen optie 1, voor andere werkt alleen optie 2
+    voorboringMeasurmentVar13 = False
+    voorboringDummyVulling = True
+    if voorboringMeasurmentVar13:
+        check_voorboring_meas_var(cpt)
+    elif voorboringDummyVulling:
+        check_voorboring_dummy(cpt)
+
+    # check of er een waterdipte is opgegeven via één regel met columnvoid waardes
+    gebruikWaterdiepte, cpt.waterdepth = check_waterdiepte(cpt)
+
+    # schrijf de data weg zonder header en index
+    # om later weer in te lezen als platte tekst
+    # direct omzetten met to_string kan een foutmelding geven bij omzetten naar XML vanwege initiële spatie
+    cpt.data.to_csv('./datatemp.txt', index=False, header=False, sep=' ', na_rep='-9999.0')
+    with open('./datatemp.txt', 'r') as dataTemp:
+        content = dataTemp.read()
+
     # begin met wegschrijven
     with open(filePath, 'w') as f:
         f.write(
@@ -218,120 +341,38 @@ def to_gef113(cpt, filePath):
             f'#REPORTCODE= {cpt.reportcode["type"]},{cpt.reportcode["major"]},{cpt.reportcode["minor"]},{cpt.reportcode["build"]}\n' + 
             f'#PROCEDURECODE= {cpt.procedurecode["type"]},{cpt.procedurecode["major"]},{cpt.procedurecode["minor"]},{cpt.procedurecode["build"]}\n' + 
             f'#COMPANYID= \n' 
-        )
-
-        f.write(
             f'#PROJECTID= {cpt.projectid}\n' +
             f'#TESTID= {cpt.testid}\n' +
             f'#XYID= 31000, {cpt.easting}, {cpt.northing}\n' +
-            f'#ZID= 31000, {cpt.groundlevel}\n'
+            f'#ZID= 31000, {cpt.groundlevel}\n' +
+            f'#FILEDATE= {cpt.filedate["year"]}, {cpt.filedate["month"]}, {cpt.filedate["day"]}\n' +
+            f'#STARTDATE= {cpt.startdate["year"]}, {cpt.startdate["month"]}, {cpt.startdate["day"]}\n'
         )
-
-        # TODO: er zijn bestanden met filedate voor startdate, dat is niet valide, daarvoor een check en bewerking inbouwen
-        # filedate is verplicht
-        if len(cpt.filedate.keys()) > 0:
-            f.write(f'#FILEDATE= {cpt.filedate["year"]}, {cpt.filedate["month"]}, {cpt.filedate["day"]}\n')
-        # als er geen filedate is, maar wel startdate is dat de tweede keus
-        elif len(cpt.startdate.keys()) > 0:
-            f.write(f'#FILEDATE= {cpt.startdate["year"]}, {cpt.startdate["month"]}, {cpt.startdate["day"]}\n')
-        # als er ook geen startdate is, dan een dummy waarde gebruiken
-        else:
-            f.write(f'#FILEDATE= {date}\n')
-
-        # zonder startdate is bestand niet valide
-        if len(cpt.startdate.keys()) > 0:
-            f.write(f'#STARTDATE= {cpt.startdate["year"]}, {cpt.startdate["month"]}, {cpt.startdate["day"]}\n')
-        # als er geen filedate is, maar wel startdate is dat de tweede keus
-        elif len(cpt.filedate.keys()) > 0:
-            f.write(f'#STARTDATE= {cpt.filedate["year"]}, {cpt.filedate["month"]}, {cpt.filedate["day"]}\n')
-        # als er ook geen startdate is, dan een dummy waarde gebruiken
-        else:
-            f.write(f'#STARTDATE= {date}\n')
 
         # voeg de measurementtexts toe
         for number, text in cpt.measurementtexts.items():
             if number != '9': # 9 maaiveld of waterbodem wordt apart behandeld
                 f.write(f"#MEASUREMENTTEXT= {number}, {text}\n")
+            else:
+                f.write(f"#MEASUREMENTTEXT= 9, {cpt.verticalReference}\n")
 
-        # lokaal verticaal referentiepunt is verplicht
-        # als het ontbreekt, aanvullen met standaard maaiveld
-        mt9Options = ['maaiveld', 'mv', 'ground level', 'groundlevel', 'waterbodem', 'wb', 'flow bed']
-        if '9' in cpt.measurementtexts.keys():
-            # er werden in de praktijk verschillende woorden gebruikt. Moet 'maaiveld' of 'waterbodem' zijn.
-            if cpt.measurementtexts['9'].lower() in mt9Options:
-                f.write(f"#MEASUREMENTTEXT= 9, {cpt.measurementtexts['9']}\n")
-            elif 'w' in cpt.measurementtexts['9'].lower():
-                f.write("#MEASUREMENTTEXT= 9, waterbodem\n")
-            elif 'v' in cpt.measurementtexts['9'].lower() or 'g' in cpt.measurementtexts['9'].lower():
-                f.write("#MEASUREMENTTEXT= 9, maaiveld\n")
-        else:
-            f.write("#MEASUREMENTTEXT= 9, maaiveld\n")
+        if voorboringMeasurmentVar13 and cpt.voorboring is not None:
+            f.write(f"#MEASUREMENTVAR= 13, {cpt.voorboring}, m, -\n") 
+
+        if gebruikWaterdiepte:
+            f.write(f"#MEASUREMENTVAR= 15, {cpt.waterdepth},m,-\n")
 
         # measurementtext 101 met KvK-nummer van bronhouder is verplicht
         if not '101' in cpt.measurementtexts.keys():
             f.write(f"#MEASUREMENTTEXT= 101, {organisatieSpecifiek.naam}, {organisatieSpecifiek.kvk}, -\n") 
         
-        # een te diepe start van de sondering zonder opgave van voorboring resulteert in een foutmelding
-        # er zijn twee opties:
-        # 1. measurement variable 13 - voorboring
-        # 2. opvullen vanaf sondeerlengte 0 met dummy waarden
-        # voor sommige bestanden werkt alleen optie 1, voor andere werkt alleen optie 2
-        voorboringMeasurmentVar13 = False
-        voorboringDummyVulling = True
-        # deze methode werkt voor 00 (2) en voor W106 (4)
-        if voorboringMeasurmentVar13:
-            # als er geen measurementvar 13 aanwezig is in het originele bestand
-            if cpt.data['penetrationLength'].min() != 0. and not '13' in cpt.measurementvars.keys():    
-                f.write(f"#MEASUREMENTVAR= 13, {cpt.data['penetrationLength'].min()}, m, -\n")
-            # als er wel measurementvar 13 aanwezig is in het originele bestand    
-            elif cpt.data['penetrationLength'].min() != 0. and '13' in cpt.measurementvars.keys():
-                f.write(f"#MEASUREMENTVAR= 13, {cpt.measurementvars['13']}\n") 
-
-        # deze methode werkt voor bijv 1016-0174-009_DKM10
-        if voorboringDummyVulling:
-            if cpt.data['penetrationLength'].min() != 0.:
-                voorboring = pd.DataFrame(columns=cpt.data.columns)
-                if 'penetrationLength' in cpt.data.columns:
-                    voorboring['penetrationLength'] = np.arange(0, cpt.data['penetrationLength'].min(), 0.02)
-                    for column in cpt.data.columns:
-                        if column != 'penetrationLength':
-                            voorboring[column] = -9999
-                cpt.data = pd.concat([cpt.data, voorboring])
-                cpt.data.sort_values(by='penetrationLength', inplace=True)
-
-        # TODO: uitzoeken wat hiermee te doen in relatie tot bovenstaande omgang met voorboringen
-        # soms is er voor een regel met dummy waarden toegevoegd, in dat geval
-        if cpt.data[cpt.data['penetrationLength'] == 0.][cpt.data.columns[1:]].isnull().values.all():
-            # het kan ook zijn dat de waarde 0 niet voorkomt, dan is de vorige True
-            # daarom check of die lengte voorkomt en of maaiveld / waterbodem is opgegeven
-            if len(cpt.data[cpt.data['penetrationLength'] == 0.] > 0) and '9' in cpt.measurementtexts.keys():
-                # als de referentie iets van water is
-                if 'w' in cpt.measurementtexts['9'].lower():
-                    # verwijder de eerste regel
-                    cpt.data.drop(labels=cpt.data[cpt.data['penetrationLength'] == 0.].index[0], axis='index')
-                    # voeg waterdiepte toe
-                    f.write(f"#MEASUREMENTVAR= 15, {cpt.data['penetrationLength'].min()},m,-\n")
-
-        # measurementvars kunnen tot fouten leiden en zijn niet verplicht, daarom zijn ze optioneel gemaakt
-        includeMeasVar = False
-        if includeMeasVar:
-            for number, text in cpt.measurementvars.items():
-                f.write(f"#MEASUREMENTVAR= {number}, {text}\n")
-
+        # informatie wat er in welke kolom staat
         for number, text in cpt.columninfo.items():
             f.write(f"#COLUMNINFO= {number+1},{cpt.columninfoUnit[number]},{text},{cpt.columninfoQuantNr[number]}\n")
 
         # column void values zijn vervangen door -9999
         for colnr, voidvalue in enumerate(cpt.data.columns): #cpt.columnvoid_values.items():
             f.write(f'#COLUMNVOID= {colnr+1}, -9999.0\n')
-
-        # schrijf de data weg zonder header en index
-        # om later weer in te lezen als platte tekst
-        # direct omzetten met to_string kan een foutmelding geven bij omzetten naar XML vanwege initiële spatie
-        cpt.data.to_csv('./datatemp.txt', index=False, header=False, sep=' ', na_rep='-9999.0')
-        with open('./datatemp.txt', 'r') as dataTemp:
-            content = dataTemp.read()
-
 
         f.write(
                 f'#COLUMN= {len(cpt.columninfo)}\n' + # aantal kolommen
@@ -342,12 +383,12 @@ def to_gef113(cpt, filePath):
 
 def check_al_in_BRO(cpt, buffer):
     # bepaal of op dit coördinaat al een sondering beschikbaar is binnen een buffer
-    if Point(cpt.easting, cpt.northing).within(buffer):
-        return True
-    else:
-        return False
+    return Point(cpt.easting, cpt.northing).within(buffer)
 
 def haal_xy_uit_GIS():
+    # TODO: nog aanvullen.
+    # er zijn GEF waar geen xy-coördinaten in zitten omdat die in een GIS bestand werden bijgehouden.
+    # er is een functie nodig om die coördinaten toe te voegen
     pass
 
 def check_benodigdheden(cpt):
@@ -372,7 +413,6 @@ def check_in_bbox(cpt):
     zuidVanBox = cpt.northing > organisatieSpecifiek.zuid
 
     return all([westVanBox, oostVanBox, noordVanBox, zuidVanBox])
-
 
 def convert_batch(files):
     # wat dingen om bij te houden wat er wel en niet is omgezet
@@ -406,11 +446,11 @@ def convert_batch(files):
                     
                     # check of de benodigde informatie aanwezig is (checkContents)
                     # en check of het geen dubbele is
-                    if all(checkContents) and not (uniekCorrect == [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]).all(1).any():
+                    if all(checkContents) and not (uniekCorrect[['x', 'y', 'lengte']] == [cpt.easting, cpt.northing, len(cpt.data)]).all(1).any():
                         # check of op deze locatie al een sondering in de BRO zit.
-                        checkInBro = check_al_in_BRO(cpt, buffer)
+                        checkInBro = check_al_in_BRO(cpt, buffer) # geeft True als op deze locatie al een CPT in BRO aanwezig is
                         # check of deze locatie binnen een bounding box valt
-                        checkInBbox = check_in_bbox(cpt)
+                        checkInBbox = check_in_bbox(cpt) # geeft True als de locatie binnen de bounding box is
                         if not checkInBro and checkInBbox:
 
                             # bestandsnaam t.b.v. wegschrijven:
@@ -429,6 +469,11 @@ def convert_batch(files):
                             to_gef113(cpt, filePath)
                             # tellertje om mappen te kunnen maken met 100 stuks
                             i += 1
+                        else:
+                            # als al in BRO of als buiten bounding box, dan wat gegevens wegschrijven
+                            nietUniekCorrect.loc[j] = [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]
+                            # tellertje voor index van niet unieke of niet correcte bestanden
+                            j += 1
                     else:
                         # als niet uniek of niet correct is, dan wat gegevens wegschrijven
                         nietUniekCorrect.loc[j] = [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]
