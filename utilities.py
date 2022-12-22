@@ -4,7 +4,9 @@ import geopandas as gpd
 import sys
 import math
 
-from functions import aanleveren, check_al_in_BRO, check_benodigdheden, check_in_bbox, to_gef113, validate
+from itertools import chain
+
+from functions import aanleveren, check_al_in_BRO, check_benodigdheden, check_in_bbox, convert_batch, to_gef113, validate
 
 sys.path.insert(0, '../gefxml_viewer')
 from gefxml_reader import Cpt
@@ -16,8 +18,51 @@ outputMap = f'{hoofdMap}/batch1run2'
 vanMap = 0
 totMap = 6
 
-doRun2 = False
-if doRun2:
+doOMEGAM = True
+if doOMEGAM:
+    topFolder = '../../data/cpt/GEF/OMEGAM'
+    folders = [f'{topFolder}/{folder}' for folder in os.listdir(topFolder) if os.path.isdir(f'{topFolder}/{folder}')]
+    gefs = []
+    for folder in folders:
+        gefs.append([f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('gef')])
+    
+    gefs = list(chain(*gefs))
+
+    convert_batch(gefs, reedsGeleverd='./output/batch1.csv', gisData='../../data/GIS/grondonderzoek/GEF_Points_06-01-2021_12-59_0.42_OMEGAM.shp')
+
+doBatch2 = False
+if doBatch2:
+    topFolder = 'C:/Users/linden082/data/cpt/GEF/niet_omegam'
+    folders = [f'{topFolder}/{folder}' for folder in os.listdir(topFolder) if os.path.isdir(f'{topFolder}/{folder}') and folder not in ['_batch1_BRO', '_uitzoeken']]
+    gefs = []
+    for folder in folders:
+        gefs.append([f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('gef')])
+    
+    gefs = list(chain(*gefs))
+    convert_batch(gefs, reedsGeleverd='./output/batch1.csv')
+    
+
+doInlezenBatch1 = False
+if doInlezenBatch1:
+    # onderstaande is om de reeds aangeleverde bestanden in te lezen
+    # en parameters weg te schrijven om te voorkomen dat dubbele worden geleverd
+    columns = ["testid", "x", "y", "lengte"]
+    batch1 = pd.DataFrame(columns=columns)
+    for i in range(0,44):
+        folder = f'C:/Users/linden082/Documents/{i}'
+        gefs = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('gef')]
+        for gef in gefs:
+            try:
+                cpt = Cpt()
+                cpt.load_gef(gef)
+                batch1.loc[len(batch1)] = [cpt.testid, cpt.easting, cpt.northing, len(cpt.data)]
+            except Exception as e:
+                print(gef, e)    
+    batch1.to_csv('./output/batch1.csv')
+
+
+doBatch1Run2 = False
+if doBatch1Run2:
     # onderstaande is om bestanden die niet valide opnieuw om te zetten
     # in de eerste run waren er vaker terugkerende fouten:
     # 1. datum uitvoering na datum rapportage
@@ -144,7 +189,7 @@ if checkInAdam:
                 dest = f'{hoofdMap}/iets mis/buitenAdam/{i}/{filename}'
                 os.rename(f, dest)
 
-doLeveren = True
+doLeveren = False
 if doLeveren:
     folders = [f'{hoofdMap}/{i}/xml' for i in range(vanMap, totMap+1)]
     aanleveren(folders)
