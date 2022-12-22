@@ -385,11 +385,14 @@ def check_al_in_BRO(cpt, buffer):
     # bepaal of op dit coördinaat al een sondering beschikbaar is binnen een buffer
     return Point(cpt.easting, cpt.northing).within(buffer)
 
-def haal_xy_uit_GIS():
-    # TODO: nog aanvullen.
+def haal_xy_uit_GIS(cpt, gisData):
     # er zijn GEF waar geen xy-coördinaten in zitten omdat die in een GIS bestand werden bijgehouden.
-    # er is een functie nodig om die coördinaten toe te voegen
-    pass
+    # deze functie voegt coördinaten uit het gis-bestand toe aan de cpt
+    cpt.easting = gisData.loc[cpt.testid.rstrip(), 'geometry'].x
+    cpt.northing = gisData.loc[cpt.testid.rstrip(), 'geometry'].y
+    
+    return cpt
+
 
 def check_benodigdheden(cpt):
     # controle of alle benodigde elementen aanwezig zijn en een correcte waarde hebben
@@ -414,15 +417,27 @@ def check_in_bbox(cpt):
 
     return all([westVanBox, oostVanBox, noordVanBox, zuidVanBox])
 
-def convert_batch(files):
+def convert_batch(files, reedsGeleverd=None, gisData=None):
     # wat dingen om bij te houden wat er wel en niet is omgezet
     columns=["testid", "x", "y", "lengte"]
-    uniekCorrect = pd.DataFrame(columns=columns)
+    if reedsGeleverd is None:
+        uniekCorrect = pd.DataFrame(columns=columns)
+        j = 0
+    else:
+        uniekCorrect = pd.read_csv(reedsGeleverd, index_col=0) # TODO: dit verandert nogal eens in deze applicatie. Trek dat gelijk! , sep=';', decimal=','
+        j = len(uniekCorrect)
+
     nietUniekCorrect = pd.DataFrame(columns=columns)
-    i, j = 0, 0
+    i = 0
+
+    # lees coördinaten uit GIS in
+    if gisData is not None:
+        gisData = gpd.read_file(gisData)
+        gisData.set_index('TestID', drop=True, inplace=True)
+        gisData = gisData[gisData['GEF_Type'] == 'GEF-CPT']
 
     # lees een GIS bestand in met locaties van onderzoek dat al in BRO aanwezig is
-    broCptVolledigeSet = gpd.read_file(organisatieSpecifiek.broGpkg)
+    broCptVolledigeSet = gpd.read_file(organisatieSpecifiek.broGpkg) 
     broCptVolledigeSet = broCptVolledigeSet.to_crs('epsg:28992')
     # maak een buffer om de punten van 1 meter vanwege afronding
     buffer = broCptVolledigeSet['geometry'].buffer(1).unary_union
@@ -441,9 +456,11 @@ def convert_batch(files):
                     checkContents = check_benodigdheden(cpt)
                     # check of het bestand een duplicaat is
 
-                    # TODO: coördinaten inlezen uit GIS bestand als ze ontbreken
-                    # Dit kan niet voor alles. Kan ook nog later
-                    
+                    # check of er coördinaten zijn, als ze ontbreken inlezen uit GIS bestand 
+                    if checkContents[0] == False and gisData is not None:
+                        cpt = haal_xy_uit_GIS(cpt, gisData)
+                        checkContents[0] = True
+
                     # check of de benodigde informatie aanwezig is (checkContents)
                     # en check of het geen dubbele is
                     if all(checkContents) and not (uniekCorrect[['x', 'y', 'lengte']] == [cpt.easting, cpt.northing, len(cpt.data)]).all(1).any():
