@@ -11,7 +11,7 @@ from requests.structures import CaseInsensitiveDict
 from requests.auth import HTTPBasicAuth
 import json
 
-import organisatieSpecifiek
+from organisatieSpecifiek import organisatieSpecifiek
 
 sys.path.insert(0, '../gefxml_viewer')
 from gefxml_reader import Cpt
@@ -28,7 +28,7 @@ def validate(folder):
     headers["Content-Type"] = "application/xml"
     headers["Authorization"] = "basic"
 
-    auth=HTTPBasicAuth(organisatieSpecifiek.username, organisatieSpecifiek.password)
+    auth=HTTPBasicAuth(organisatieSpecifiek.get('username'), organisatieSpecifiek.get('password'))
 
     validateDict = {}
 
@@ -51,13 +51,13 @@ def aanleveren(folders):
     print('aanleveren loopt')
     
     # geef het projectid op. Dit is het projectnummer dat je vindt onder Projectgegevens in het bronhouderportaal
-    projectId = organisatieSpecifiek.projectId
+    projectId = organisatieSpecifiek.get('projectId')
     
     headersAanmaken = CaseInsensitiveDict()
     headersAanmaken["Content-Type"] = "application/xml"
     headersAanmaken["Authorization"] = "basic"
 
-    auth=HTTPBasicAuth(organisatieSpecifiek.username, organisatieSpecifiek.password)
+    auth=HTTPBasicAuth(organisatieSpecifiek.get('username'), organisatieSpecifiek.get('password'))
 
     uploadId = upload_aanmaken(auth, headersAanmaken, projectId)
 
@@ -280,7 +280,7 @@ def kvk_aanvullen(cpt):
     elif 'VWB'.lower() in cpt.companyid.lower():
         kvk = '62092758'
     else:
-        kvk = organisatieSpecifiek.kvk
+        kvk = organisatieSpecifiek.get('kvk')
     return kvk
 
 def to_gef113(cpt, filePath):
@@ -351,10 +351,9 @@ def to_gef113(cpt, filePath):
 
         # voeg de measurementtexts toe
         for number, text in cpt.measurementtexts.items():
-            if number != '9': # 9 maaiveld of waterbodem wordt apart behandeld
-                f.write(f"#MEASUREMENTTEXT= {number}, {text}\n")
-            else:
-                f.write(f"#MEASUREMENTTEXT= 9, {cpt.verticalReference}\n")
+            f.write(f"#MEASUREMENTTEXT= {number}, {text}\n")
+        if '9' not in cpt.measurementtexts.keys():
+            f.write(f"#MEASUREMENTTEXT= 9, {cpt.verticalReference}\n")
 
         if voorboringMeasurmentVar13 and cpt.voorboring is not None:
             f.write(f"#MEASUREMENTVAR= 13, {cpt.voorboring}, m, -\n") 
@@ -364,7 +363,7 @@ def to_gef113(cpt, filePath):
 
         # measurementtext 101 met KvK-nummer van bronhouder is verplicht
         if not '101' in cpt.measurementtexts.keys():
-            f.write(f"#MEASUREMENTTEXT= 101, {organisatieSpecifiek.naam}, {organisatieSpecifiek.kvk}, -\n") 
+            f.write(f"#MEASUREMENTTEXT= 101, {organisatieSpecifiek.get('naam')}, {organisatieSpecifiek.get('kvk')}, -\n") 
         
         # informatie wat er in welke kolom staat
         for number, text in cpt.columninfo.items():
@@ -410,14 +409,14 @@ def check_benodigdheden(cpt):
 
 def check_in_bbox(cpt):
     # check of de locatie binnen een bounding box is
-    westVanBox = cpt.easting > organisatieSpecifiek.west
-    oostVanBox = cpt.easting < organisatieSpecifiek.oost
-    noordVanBox = cpt.northing < organisatieSpecifiek.noord
-    zuidVanBox = cpt.northing > organisatieSpecifiek.zuid
+    westVanBox = cpt.easting > organisatieSpecifiek.get('west', 0)
+    oostVanBox = cpt.easting < organisatieSpecifiek.get('oost', 999_999)
+    noordVanBox = cpt.northing < organisatieSpecifiek.get('noord', 999_999)
+    zuidVanBox = cpt.northing > organisatieSpecifiek.get('zuid', 0)
 
     return all([westVanBox, oostVanBox, noordVanBox, zuidVanBox])
 
-def convert_batch(files, reedsGeleverd=None, gisData=None):
+def convert_batch(files, reedsGeleverd=None, gisData=None, verwijderDiepte=False):
     # wat dingen om bij te houden wat er wel en niet is omgezet
     columns=["testid", "x", "y", "lengte"]
     if reedsGeleverd is None:
@@ -451,6 +450,19 @@ def convert_batch(files, reedsGeleverd=None, gisData=None):
                     cpt = Cpt()
                     # laad de cpt in
                     cpt.load_gef(f)
+
+                    # diepte is soms groter dan sondeerlengte, dat is niet correct
+                    # omdat diepte niet verplicht is, kan het verwijderd worden
+                    if verwijderDiepte and 'depth' in cpt.data.columns:
+                        # verwijder de kolom uit de data
+                        cpt.data.drop(columns=['depth'], inplace=True)
+                        # verwijder de gegevens uit de columninfo
+                        for key, value in cpt.columninfoQuantNr.items():
+                            if int(value) == 11: # depth is 11
+                                del cpt.columninfo[key]
+                                del cpt.columninfoQuantNr[key]
+                                del cpt.columninfoUnit[key]
+                                break
 
                     # doe checks of xyz-coördinaten, testid en projectid aanwezig zijn en niet 0
                     checkContents = check_benodigdheden(cpt)

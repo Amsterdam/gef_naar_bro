@@ -5,19 +5,35 @@ Deze applicatie:
 Meer over de validatie op: [bro-website] https://basisregistratieondergrond.nl/inhoud-bro/aanleveren-gebruiken/tools-tips/validatieservice/
 Meer over de API op: [bro-api] https://www.bronhouderportaal-bro.nl/doc/api.html
 
-Voor gebruik van de API is een apart bestand met de naam organisatieSpecifiek.py nodig
-Hierin staan username en wachtwoord voor de API, kvk-nummer en naam van de organisatie en
-ook een link naar de bestandslocatie van de geopkg met sondeerlocaties die al aanwezig zijn in de BRO. Dit alles op te geven, met de onderstaande namen:
-* username = '' Code bestaande uit letters en cijfers, wordt gegenereerd in het Bronhouderportaal
-* password = '' Code bestaande uit letters en cijfers, wordt gegenereerd in het Bronhouderportaal
-* projectId = '1234' Type: string. Dit is het projectnummer dat je vindt onder Projectgegevens in het bronhouderportaal
-* kvk = '12345678' Type: string. Dit is het registratienummer van je organisatie bij de KvK
-* broGpkg = './path/to/brocptvolledigeset_11-07-2022_14-09_v0.03.gpkg' Locatie en naam van een geopackage met sonderingen om dubbele te voorkomen.
-* naam = 'Gemeente Amsterdam' Naam van je organisatie
-* oost = 135000 Maximale RD x-coördinaat van het gebied waaruit je wil aanleveren
-* west = 105000 Minimale RD x-coördinaat van het gebied waaruit je wil aanleveren
-* noord = 495000 Maximale RD y-coördinaat van het gebied waaruit je wil aanleveren
-* zuid = 476000 Minimale RD y-coördinaat van het gebied waaruit je wil aanleveren
+Voor sommige onderdelen is een apart bestand met de naam _organisatieSpecifiek.py_ nodig
+Hierin staan een variabelen die je kan opgeven als een dict met deze _keys_ (een toelichting op de _values_ staat eronder):
+
+organisatieSpecifiek = {
+    'username': _'username uit bro'_,
+    'password': _'password uit bro'_,
+    'projectId': _projectid_,
+    'kvk': _kvk-nummer_,
+    'naam': _'organisatienaam'_,
+    'broGpkg': _'./path/to/bestand.gpkg'_,
+    'oost': _135000_,
+    'west': _105000_,
+    'noord': _495000_,
+    'zuid': _476000_
+}
+
+
+| Variabele | Type (voorbeeld) | Verplicht | Toelichting |
+---------------------------
+| username | string | alleen voor validatie en levering aan BRO | Code bestaande uit letters en cijfers, wordt gegenereerd in het Bronhouderportaal |
+| password | string | alleen voor validatie en levering aan BRO | Code bestaande uit letters en cijfers, wordt gegenereerd in het Bronhouderportaal |
+| projectId | int (1234) | alleen voor levering aan BRO | Dit is het projectnummer dat je vindt onder Projectgegevens in het bronhouderportaal |
+| kvk | int (12345678) | Verplicht | Dit is het registratienummer van je organisatie bij de KvK |
+| broGpkg | string ('./path/to/bestand.gpkg') | Optioneel | Locatie en naam van een geopackage met sonderingen om dubbele te voorkomen. |
+| naam | string ('Gemeente Amsterdam') | Verplicht | Naam van je organisatie
+| oost | int of float (135000) | Optioneel | Maximale RD x-coördinaat van het gebied waaruit je wil aanleveren |
+| west | int of float (105000) | Optioneel | Minimale RD x-coördinaat van het gebied waaruit je wil aanleveren |
+| noord | int of float (495000) | Optioneel | Maximale RD y-coördinaat van het gebied waaruit je wil aanleveren |
+| zuid | int of float (476000) | Optioneel | Minimale RD y-coördinaat van het gebied waaruit je wil aanleveren
 De BRO CPT geopackage is te downloaden op: [PDOK] https://service.pdok.nl/bzk/brocptvolledigeset/atom/v1_0/brocptvolledigeset.xml. Dit bestand bevat sonderingen in heel Nederland en kan vanwege de verwerkingssnelheid beter eerst gefilterd worden voor het gebied waar je werkt.
 
 ## Dependencies
