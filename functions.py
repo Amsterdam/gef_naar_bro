@@ -62,6 +62,7 @@ def aanleveren(folders):
     uploadId = upload_aanmaken(auth, headersAanmaken, projectId)
 
     for folder in folders: # het zou netter zijn per folder, maar dan is de levering ook per folder en dat is minder goed
+        print(f'start map {folder}')
         files = [f'{folder}/{f}' for f in os.listdir(folder) if f.lower().endswith('xml')]
         for path in files:
             bestanden_toevoegen_aan_upload(auth, headersAanmaken, path, projectId, uploadId)
@@ -96,6 +97,7 @@ def bestanden_toevoegen_aan_upload(auth, headers, path, projectId, uploadId):
 def lever_upload(auth, projectId, uploadId):
     # stap 3 (laatste stap) van aanleveren via BRO API
     # lever de upload
+    print('start leveren')
     urlLeveren = f'https://www.bronhouderportaal-bro.nl/api/v2/{projectId}/leveringen?labels=archief'
 
     headersLeveren = CaseInsensitiveDict()
@@ -436,7 +438,7 @@ def convert_batch(files, reedsGeleverd=None, gisData=None, verwijderDiepte=False
         gisData = gisData[gisData['GEF_Type'] == 'GEF-CPT']
 
     # lees een GIS bestand in met locaties van onderzoek dat al in BRO aanwezig is
-    broCptVolledigeSet = gpd.read_file(organisatieSpecifiek.broGpkg) 
+    broCptVolledigeSet = gpd.read_file(organisatieSpecifiek.get('broGpkg')) 
     broCptVolledigeSet = broCptVolledigeSet.to_crs('epsg:28992')
     # maak een buffer om de punten van 1 meter vanwege afronding
     buffer = broCptVolledigeSet['geometry'].buffer(1).unary_union
