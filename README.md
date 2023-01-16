@@ -1,8 +1,8 @@
 # gef naar gef 1.1.3 omzetter t.b.v. aanleveren als imbro/a
 Deze applicatie:
 * zet oude gef formaten om in gef 1.1.3. Er wordt informatie waar nodig aangevuld of aangepast. Deze bestanden kunnen vervolgens met het programma GEF-CPT2BRO-XML (van Fugro en Wiertsema & Partners, verkrijgbaar bij BRO) omgezet worden in IMBRO/A. De xml kunnen worden geleverd aan de BRO.
-* Ook is er een optie om XMl te valideren en te leveren via de API van de BRO. Hiervoor zijn een inlognaam en wachtwoord benodigd.
-Meer over de validatie op: [bro-website] https://basisregistratieondergrond.nl/inhoud-bro/aanleveren-gebruiken/tools-tips/validatieservice/
+* Ook is er een optie om XML te valideren en te leveren via de API van de BRO. Hiervoor zijn een inlognaam en wachtwoord benodigd.  
+Meer over de validatie op: [bro-website] https://basisregistratieondergrond.nl/inhoud-bro/aanleveren-gebruiken/tools-tips/validatieservice/  
 Meer over de API op: [bro-api] https://www.bronhouderportaal-bro.nl/doc/api.html
 
 Voor sommige onderdelen is een apart bestand met de naam _organisatieSpecifiek.py_ nodig
