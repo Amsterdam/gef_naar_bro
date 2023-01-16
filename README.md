@@ -24,19 +24,19 @@ organisatieSpecifiek = {
 ```
 
 | Variabele | Type | Voorbeeld | Verplicht? | Toelichting |
-|-----------|------------------|-----------|-------------|
-| username | string |  | alleen voor validatie en levering aan BRO | Code bestaande uit letters en cijfers*¹ |
-| password | string |  | alleen voor validatie en levering aan BRO | Code bestaande uit letters en cijfers*¹ |
+|-----------|------|------------|------------|-------------|
+| username | string | nvt | alleen voor validatie en levering aan BRO | Code bestaande uit letters en cijfers*¹ |
+| password | string | nvt | alleen voor validatie en levering aan BRO | Code bestaande uit letters en cijfers*¹ |
 | projectId | int | 1234 | alleen voor levering aan BRO | Projectnummer dat je vindt onder Projectgegevens in het bronhouderportaal |
-| kvk | int | 12345678 | Verplicht | Dit is het registratienummer van je organisatie bij de KvK |
-| naam | string | 'Gemeente Amsterdam' | Verplicht | Naam van je organisatie
-| broGpkg | string | './path/to/bestand.gpkg' | Optioneel | Locatie en naam van een geopackage*² met sonderingen om dubbele te voorkomen. |
+| kvk | int | 12345678 | Verplicht | Registratienummer van je organisatie bij de KvK |
+| naam | string | 'Gemeente Amsterdam' | Verplicht | Naam van je organisatie |
+| broGpkg | string | './path/to/bestand.gpkg' | Optioneel | Locatie van een geopackage*² met cpt-locaties om dubbele te voorkomen |
 | oost | int of float | 135000 | Optioneel | Maximale RD x-coördinaat van het gebied waaruit je wil aanleveren |
 | west | int of float | 105000 | Optioneel | Minimale RD x-coördinaat van het gebied waaruit je wil aanleveren |
 | noord | int of float | 495000 | Optioneel | Maximale RD y-coördinaat van het gebied waaruit je wil aanleveren |
 | zuid | int of float | 476000 | Optioneel | Minimale RD y-coördinaat van het gebied waaruit je wil aanleveren |
 
-\*¹ wordt gegenereerd in het Bronhouderportaal
+\*¹ wordt gegenereerd in het Bronhouderportaal  
 \*² De BRO CPT geopackage is te downloaden op: [PDOK] https://service.pdok.nl/bzk/brocptvolledigeset/atom/v1_0/brocptvolledigeset.xml. Dit bestand bevat sonderingen in heel Nederland en kan vanwege de verwerkingssnelheid beter eerst gefilterd worden voor het gebied waar je werkt.
 
 ## Dependencies
