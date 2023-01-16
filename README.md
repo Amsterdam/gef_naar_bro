@@ -17,7 +17,7 @@ organisatieSpecifiek = {
     'naam': organisatienaam,  
     'broGpkg': adres van gpkg-bestand,  
     'oost': oostgrens,  
-    'west': weastgrens,  
+    'west': westgrens,  
     'noord': noordgrens,  
     'zuid': zuidgrens  
 }
