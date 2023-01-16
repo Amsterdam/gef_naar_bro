@@ -2,8 +2,9 @@
 Deze applicatie:
 * zet oude gef formaten om in gef 1.1.3. Er wordt informatie waar nodig aangevuld of aangepast. Deze bestanden kunnen vervolgens met het programma GEF-CPT2BRO-XML (van Fugro en Wiertsema & Partners, verkrijgbaar bij BRO) omgezet worden in IMBRO/A. De xml kunnen worden geleverd aan de BRO.
 * Ook is er een optie om XML te valideren en te leveren via de API van de BRO. Hiervoor zijn een inlognaam en wachtwoord benodigd.  
-Meer over de validatie op: [bro-website] https://basisregistratieondergrond.nl/inhoud-bro/aanleveren-gebruiken/tools-tips/validatieservice/  
-Meer over de API op: [bro-api] https://www.bronhouderportaal-bro.nl/doc/api.html
+
+Meer over de validatie op: [bro-website](https://basisregistratieondergrond.nl/inhoud-bro/aanleveren-gebruiken/tools-tips/validatieservice/)  
+Meer over de API op: [bro-api](https://www.bronhouderportaal-bro.nl/doc/api.html)
 
 Voor sommige onderdelen is een apart bestand met de naam _organisatieSpecifiek.py_ nodig
 Hierin staan een variabelen die je kan opgeven als een dict met deze _keys_ (een toelichting op de _values_ staat eronder):
@@ -37,7 +38,7 @@ organisatieSpecifiek = {
 | zuid | int of float | 476000 | Optioneel | Minimale RD y-coördinaat van het gebied waaruit je wil aanleveren |
 
 \*¹ wordt gegenereerd in het Bronhouderportaal  
-\*² De BRO CPT geopackage is te downloaden op: [PDOK] https://service.pdok.nl/bzk/brocptvolledigeset/atom/v1_0/brocptvolledigeset.xml. Dit bestand bevat sonderingen in heel Nederland en kan vanwege de verwerkingssnelheid beter eerst gefilterd worden voor het gebied waar je werkt.
+\*² De BRO CPT geopackage is te downloaden op: [PDOK](https://service.pdok.nl/bzk/brocptvolledigeset/atom/v1_0/brocptvolledigeset.xml). Dit bestand bevat sonderingen in heel Nederland en kan vanwege de verwerkingssnelheid beter eerst gefilterd worden voor het gebied waar je werkt.
 
 ## Dependencies
 * Zie environment.yml
