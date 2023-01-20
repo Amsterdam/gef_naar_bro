@@ -56,7 +56,7 @@ organisatieSpecifiek = {
 ## GEF omzetten naar GEF 1.1.3
 1. Ga naar de Windows startknop en type daar `cmd`
 1. Kies _Anaconda Prompt (Miniconda3)_
-1. Ga in de prompt naar de map _gef2gef113_ 
+1. Ga in de prompt naar de map _gef\_naar\_bro_ 
 1. Kopieer en plak:
 * `conda activate geo_env` (dit moet je iedere keer doen wanneer je begint met een sessie)
 * `python gui_2gef113.py`
