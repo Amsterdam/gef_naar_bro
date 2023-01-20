@@ -50,7 +50,7 @@ organisatieSpecifiek = {
 1. Voer eerst de stappen uit van de [gefxml_reader](https://github.com/Amsterdam/gefxml_viewer)
 1. Ga naar de map _scripts_. Klik met de rechtermuisknop en kies voor _Git bash here_
 1. Kopieer en plak (met rechtse muisknop of shift + Insert):
-`git clone https://github.com/Amsterdam/gef2gef113.git`
+`git clone https://github.com/Amsterdam/gef_naar_bro_.git`
 1. Je kan het Git bash venster nu afsluiten met `exit`
 1. Controleer of er in de map _lengteprofiel_ een map is met de naam _input_ en een map _output_
 
