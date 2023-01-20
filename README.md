@@ -71,7 +71,7 @@ organisatieSpecifiek = {
 
 ## BRO-XML bestanden valideren (dit is niet verplicht)
 1. Kopieer en plak in de prompt nog eens:
-* `python gui_2gef113.py`
+* `python gui_gef2gef113.py`
 1. Klik _Select Validate_
 1. Selecteer een map met BRO-XML-bestanden die je wil valideren
 1. Klik _Continue_
