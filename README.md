@@ -41,7 +41,6 @@ organisatieSpecifiek = {
 \*² De BRO CPT geopackage is te downloaden op: [PDOK](https://service.pdok.nl/bzk/brocptvolledigeset/atom/v1_0/brocptvolledigeset.xml). Dit bestand bevat sonderingen in heel Nederland en kan vanwege de verwerkingssnelheid beter eerst gefilterd worden voor het gebied waar je werkt.
 
 ## Dependencies
-* Zie environment.yml
 * [gefxml_reader](https://github.com/Amsterdam/gefxml_viewer)
 
 # Heb je geen ervaring met Python? Volg dan deze stappen
@@ -52,7 +51,7 @@ organisatieSpecifiek = {
 1. Kopieer en plak (met rechtse muisknop of shift + Insert):
 `git clone https://github.com/Amsterdam/gef_naar_bro.git`
 1. Je kan het Git bash venster nu afsluiten met `exit`
-1. Controleer of er in de map _lengteprofiel_ een map is met de naam _input_ en een map _output_
+1. Controleer of er nu in de map _scripts_ een map is met de naam _gef\_naar\_bro_ en daarin een map is met de naam _output_
 
 ## GEF omzetten naar GEF 1.1.3
 1. Ga naar de Windows startknop en type daar `cmd`
