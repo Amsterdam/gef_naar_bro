@@ -438,10 +438,13 @@ def convert_batch(files, reedsGeleverd=None, gisData=None, verwijderDiepte=False
         gisData = gisData[gisData['GEF_Type'] == 'GEF-CPT']
 
     # lees een GIS bestand in met locaties van onderzoek dat al in BRO aanwezig is
-    broCptVolledigeSet = gpd.read_file(organisatieSpecifiek.get('broGpkg')) 
-    broCptVolledigeSet = broCptVolledigeSet.to_crs('epsg:28992')
-    # maak een buffer om de punten van 1 meter vanwege afronding
-    buffer = broCptVolledigeSet['geometry'].buffer(1).unary_union
+    broGpkg = organisatieSpecifiek.get('broGpkg', None)
+
+    if broGpkg is not None:
+        broCptVolledigeSet = gpd.read_file(broGpkg) 
+        broCptVolledigeSet = broCptVolledigeSet.to_crs('epsg:28992')
+        # maak een buffer om de punten van 1 meter vanwege afronding
+        buffer = broCptVolledigeSet['geometry'].buffer(1).unary_union
 
     # maak een bestand om foutmeldingen te verzamelen
     with open('./output/errors.txt', 'w') as errors:
@@ -478,8 +481,13 @@ def convert_batch(files, reedsGeleverd=None, gisData=None, verwijderDiepte=False
                     # check of de benodigde informatie aanwezig is (checkContents)
                     # en check of het geen dubbele is
                     if all(checkContents) and not (uniekCorrect[['x', 'y', 'lengte']] == [cpt.easting, cpt.northing, len(cpt.data)]).all(1).any():
+                        
                         # check of op deze locatie al een sondering in de BRO zit.
-                        checkInBro = check_al_in_BRO(cpt, buffer) # geeft True als op deze locatie al een CPT in BRO aanwezig is
+                        if broGpkg is not None:
+                            checkInBro = check_al_in_BRO(cpt, buffer) # geeft True als op deze locatie al een CPT in BRO aanwezig is
+                        else:
+                            checkInBro = False
+
                         # check of deze locatie binnen een bounding box valt
                         checkInBbox = check_in_bbox(cpt) # geeft True als de locatie binnen de bounding box is
                         if not checkInBro and checkInBbox:

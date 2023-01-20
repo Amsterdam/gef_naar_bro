@@ -86,5 +86,8 @@ Tips hierbij:
 ## Vragen of opmerkingen?
 1. Stuur een bericht aan Thomas van der Linden, bijvoorbeeld via [LinkedIn](https://www.linkedin.com/in/tjmvanderlinden/)
 
+## Bedankt
+Frank van Lier (gemeente Almere) voor het testen
+
 ## Resultaten?
 1. Heb je mooie resultaten gemaakt met deze applicatie? We vinden het heel leuk als je ze deelt (en Thomas tagt)
