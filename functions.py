@@ -324,7 +324,7 @@ def to_gef113(cpt, filePath):
     if voorboringMeasurmentVar13:
         check_voorboring_meas_var(cpt)
     elif voorboringDummyVulling:
-        check_voorboring_dummy(cpt)
+        check_voorboring_dummy(cpt) # TODO: waarschijnlijk deze versie gaf bestanden met voorboring = 0, terwijl er wel voorgeboord was. Zie mail van bro 2 februari 2023
 
     # check of er een waterdipte is opgegeven via één regel met columnvoid waardes
     gebruikWaterdiepte, cpt.waterdepth = check_waterdiepte(cpt)

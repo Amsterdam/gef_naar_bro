@@ -59,7 +59,7 @@ organisatieSpecifiek = {
 1. Ga in de prompt naar de map _gef\_naar\_bro_ 
 1. Kopieer en plak:
 * `conda activate geo_env` (dit moet je iedere keer doen wanneer je begint met een sessie)
-* `python gui_2gef113.py`
+* `python gui_gef2gef113.py`
 1. Klik _Select files_
 1. Selecteer de bestanden die je om wil zetten
 1. Klik _Continue_
