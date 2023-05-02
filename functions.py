@@ -13,8 +13,7 @@ import json
 
 from organisatieSpecifiek import organisatieSpecifiek
 
-sys.path.insert(0, '../gefxml_viewer')
-from gefxml_reader import Cpt
+from geotexxx.gefxml_reader import Cpt
 
 def validate(folder):
     # functie om bestanden te valideren via de API van BRO
