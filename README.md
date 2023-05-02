@@ -41,24 +41,36 @@ organisatieSpecifiek = {
 \*² De BRO CPT geopackage is te downloaden op: [PDOK](https://service.pdok.nl/bzk/brocptvolledigeset/atom/v1_0/brocptvolledigeset.xml). Dit bestand bevat sonderingen in heel Nederland en kan vanwege de verwerkingssnelheid beter eerst gefilterd worden voor het gebied waar je werkt.
 
 ## Dependencies
-* [gefxml_reader](https://github.com/Amsterdam/gefxml_viewer)
+* geotexxx
+* geopandas
 
 # Heb je geen ervaring met Python? Volg dan deze stappen
+## Benodigde programma's
+1. Download en installeer deze programma's met de standaardinstellingen:
+* [Miniconda](https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe)
+* [Git](https://github.com/git-for-windows/git/releases/download/v2.36.1.windows.1/Git-2.36.1-64-bit.exe)
 
-## De applicatie opslaan
-1. Voer eerst de stappen uit van de [gefxml_reader](https://github.com/Amsterdam/gefxml_viewer)
+## De applicatie opslaan (dit is allemaal eenmalig)
+1. Maak een map waarin je de bestanden willen opslaan, noem deze bijvoorbeeld _scripts_
 1. Ga naar de map _scripts_. Klik met de rechtermuisknop en kies voor _Git bash here_
 1. Kopieer en plak (met rechtse muisknop of shift + Insert):
 `git clone https://github.com/Amsterdam/gef_naar_bro.git`
 1. Je kan het Git bash venster nu afsluiten met `exit`
-1. Controleer of er nu in de map _scripts_ een map is met de naam _gef\_naar\_bro_ en daarin een map is met de naam _output_
+1. Controleer of er nu in de map _scripts_ een map is met de naam _gef\_naar\_bro_ en daarin een map is met de naam _output_ (let op kleine o, geen hoofdletter)
+1. Is die er niet? Maak deze dan
+
+1. Ga naar de Windows startknop en type daar `cmd`
+1. Kies _Anaconda Prompt (Miniconda3)_
+1. Ga in de prompt naar de map _gef\_naar\_bro_
+1. kopieer en plak:
+* `conda env create --file environment.yml`
 
 ## GEF omzetten naar GEF 1.1.3
 1. Ga naar de Windows startknop en type daar `cmd`
 1. Kies _Anaconda Prompt (Miniconda3)_
 1. Ga in de prompt naar de map _gef\_naar\_bro_ 
 1. Kopieer en plak:
-* `conda activate geo_env` (dit moet je iedere keer doen wanneer je begint met een sessie)
+* `conda activate geotexxx` (dit moet je iedere keer doen wanneer je begint met een sessie)
 * `python gui_gef2gef113.py`
 1. Klik _Select files_
 1. Selecteer de bestanden die je om wil zetten
@@ -78,7 +90,7 @@ organisatieSpecifiek = {
 1. Er wordt een bestand in deze map gemaakt met het resultaat (valide / niet valide en reden)
 
 ## Aanleveren aan de BRO
-1. Lever de bestanden op de gebruikelijke wijze aan bij de BRO. 
+1. Lever de bestanden op de gebruikelijke wijze aan bij de BRO via het bronhouderportaal 
 2. Of gebruik de functies die daarvoor beschikbaar zijn in functions.py
 Tips hierbij:
 * Doe het in kleine batches (maximaal 500 stuks per keer)
